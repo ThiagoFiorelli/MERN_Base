@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const auth = require('../../middleware/authMiddleware');
 const { check, validationResult } = require('express-validator');
+const request = require('request');
+const config = require('config');
 
 const Profile = require('../../models/ProfileModel');
 const User = require('../../models/UserModel');
@@ -216,24 +218,22 @@ router.put(
 // @route  DELETE api/profile/experience/:exp_id
 // @desc   Delete experience from profile
 // @access Private
-
 router.delete('/experience/:exp_id', auth, async (req, res) => {
   try {
-    const profile = await Profile.findOne({ user: req.user.id });
-
-    // Get remove index
-    const removeIndex = profile.experience
-      .map(item => item.id)
-      .indexOf(req.params.exp_id);
-
-    profile.experience.splice(removeIndex, 1);
-
-    await profile.save();
-
-    res.json(profile);
-  } catch (err) {
-    console.error(error.message);
-    res.status(500).send('Server error');
+    const foundProfile = await Profile.findOne({ user: req.user.id });
+    const expIds = foundProfile.experience.map(exp => exp._id.toString());
+    // if i dont add .toString() it returns this weird mongoose coreArray and the ids are somehow objects and it still deletes anyway even if you put /experience/5
+    const removeIndex = expIds.indexOf(req.params.exp_id);
+    if (removeIndex === -1) {
+      return res.status(500).json({ msg: 'Server error' });
+    } else {
+      foundProfile.experience.splice(removeIndex, 1);
+      await foundProfile.save();
+      return res.status(200).json(foundProfile);
+    }
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ msg: 'Server error' });
   }
 });
 
@@ -303,23 +303,51 @@ router.put(
 // @route  DELETE api/profile/education/:edu_id
 // @desc   Delete education from profile
 // @access Private
-
 router.delete('/education/:edu_id', auth, async (req, res) => {
   try {
-    const profile = await Profile.findOne({ user: req.user.id });
+    const foundProfile = await Profile.findOne({ user: req.user.id });
+    const eduIds = foundProfile.education.map(edu => edu._id.toString());
+    // if i dont add .toString() it returns this weird mongoose coreArray and the ids are somehow objects and it still deletes anyway even if you put /education/5
+    const removeIndex = eduIds.indexOf(req.params.edu_id);
+    if (removeIndex === -1) {
+      return res.status(500).json({ msg: 'Server error' });
+    } else {
+      foundProfile.education.splice(removeIndex, 1);
+      await foundProfile.save();
+      return res.status(200).json(foundProfile);
+    }
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ msg: 'Server error' });
+  }
+});
 
-    // Get remove index
-    const removeIndex = profile.education
-      .map(item => item.id)
-      .indexOf(req.params.edu_id);
+// @route  GET api/profile/github/:username
+// @desc   Get user repos from github
+// @access Public
+router.get('/github/:username', (req, res) => {
+  try {
+    const options = {
+      uri: `https://api.github.com/users/${
+        req.params.username
+      }/repos?per_page=5&sort=created:asc&client_id=${config.get(
+        'githubClientId'
+      )}&client_secret=${config.get('githubSecret')}`,
+      method: 'GET',
+      headers: { 'user-agent': 'node.js' }
+    };
 
-    profile.education.splice(removeIndex, 1);
+    request(options, (error, response, body) => {
+      if (error) console.errror(error);
 
-    await profile.save();
+      if (response.statusCode !== 200) {
+        return res.status(404).json({ msg: 'No Github profile found' });
+      }
 
-    res.json(profile);
+      res.json(JSON.parse(body));
+    });
   } catch (err) {
-    console.error(error.message);
+    console.error(err.message);
     res.status(500).send('Server error');
   }
 });
