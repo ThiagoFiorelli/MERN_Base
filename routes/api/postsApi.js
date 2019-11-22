@@ -12,14 +12,7 @@ const User = require('../../models/UserModel');
 // @access   Private
 router.post(
   '/',
-  [
-    auth,
-    [
-      check('text', 'Text is required')
-        .not()
-        .isEmpty()
-    ]
-  ],
+  [auth, [check('text', 'Text is required').not().isEmpty()]],
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -74,6 +67,9 @@ router.get('/:id', auth, async (req, res) => {
     res.json(post);
   } catch (err) {
     console.error(err.message);
+    if (err.kind === 'ObjectId') {
+      return res.status(404).json({ msg: 'Post not found' });
+    }
 
     res.status(500).send('Server Error');
   }
@@ -101,7 +97,9 @@ router.delete('/:id', auth, async (req, res) => {
     res.json({ msg: 'Post removed' });
   } catch (err) {
     console.error(err.message);
-
+    if (err.kind === 'ObjectId') {
+      return res.status(404).json({ msg: 'Post not found' });
+    }
     res.status(500).send('Server Error');
   }
 });
@@ -167,14 +165,7 @@ router.put('/unlike/:id', auth, async (req, res) => {
 // @access   Private
 router.post(
   '/comment/:id',
-  [
-    auth,
-    [
-      check('text', 'Text is required')
-        .not()
-        .isEmpty()
-    ]
-  ],
+  [auth, [check('text', 'Text is required').not().isEmpty()]],
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -189,7 +180,7 @@ router.post(
         text: req.body.text,
         name: user.name,
         avatar: user.avatar,
-        user: req.user.id
+        user: req.user.id // req.user.id or user.id?
       };
 
       post.comments.unshift(newComment);
